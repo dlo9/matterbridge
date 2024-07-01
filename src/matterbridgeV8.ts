@@ -475,6 +475,7 @@ export class MatterbridgeV8 extends EventEmitter {
         multiPressMax: 2,
       },
     });
+
     await this.matterAggregator.add(switchEnpoint2);
     switchEnpoint2.events.identify.startIdentifying.on(() => log.notice('GenericSwitch.identify logic, ideally blink a light every 0.5s ...'));
     switchEnpoint2.events.switch.currentPosition$Changed.on(() => log.notice('GenericSwitch.currentPosition changed ...'));

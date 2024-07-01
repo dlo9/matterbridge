@@ -6,7 +6,8 @@ import { AggregatorEndpoint } from '@project-chip/matter.js/endpoints/Aggregator
 import { BridgedNodeEndpoint } from '@project-chip/matter.js/endpoints/BridgedNodeEndpoint';
 import { MutableEndpoint, EndpointType } from '@project-chip/matter.js/endpoint/type';
 import { Behavior } from '@project-chip/matter.js/behavior';
-import { SupportedBehaviors } from '@project-chip/matter.js/endpoint/properties';
+import { ClusterBehavior } from '@project-chip/matter.js/behavior/cluster';
+import { SupportedBehaviors, Behaviors } from '@project-chip/matter.js/endpoint/properties';
 import { IdentifyServer, IdentifyBehavior } from '@project-chip/matter.js/behavior/definitions/identify';
 import { GroupsServer, GroupsBehavior } from '@project-chip/matter.js/behavior/definitions/groups';
 import { ScenesServer, ScenesBehavior } from '@project-chip/matter.js/behavior/definitions/scenes';
@@ -28,6 +29,7 @@ import {
   Cluster,
   ClusterClientObj,
   ClusterServer,
+  ClusterServerHandlers,
   ClusterServerObj,
   ColorControl,
   ColorControlCluster,
@@ -76,7 +78,7 @@ import {
   createDefaultScenesClusterServer,
   getClusterNameById,
 } from '@project-chip/matter-node.js/cluster';
-import { AtLeastOne } from '@project-chip/matter-node.js/util';
+import { AtLeastOne, MakeMandatory, NamedHandler } from '@project-chip/matter-node.js/util';
 import { ClusterId, EndpointNumber, VendorId } from '@project-chip/matter-node.js/datatype';
 
 // Matterbridge imports
@@ -105,6 +107,54 @@ import { MeasurementType } from './cluster/MeasurementType.js';
 import { ConcentrationMeasurement } from './cluster/ConcentrationMeasurementCluster.js';
 import { BitSchema, TypeFromPartialBitSchema } from '@project-chip/matter-node.js/schema';
 
+export interface MatterbridgeDeviceV8Commands {
+  identify: MakeMandatory<ClusterServerHandlers<typeof Identify.Complete>['identify']>;
+
+  on: MakeMandatory<ClusterServerHandlers<typeof OnOff.Complete>['on']>;
+  off: MakeMandatory<ClusterServerHandlers<typeof OnOff.Complete>['off']>;
+  toggle: MakeMandatory<ClusterServerHandlers<typeof OnOff.Complete>['toggle']>;
+  offWithEffect: MakeMandatory<ClusterServerHandlers<typeof OnOff.Complete>['offWithEffect']>;
+
+  moveToLevel: MakeMandatory<ClusterServerHandlers<typeof LevelControl.Complete>['moveToLevel']>;
+  moveToLevelWithOnOff: MakeMandatory<ClusterServerHandlers<typeof LevelControl.Complete>['moveToLevelWithOnOff']>;
+
+  moveToColor: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveToHue']>;
+  moveColor: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveToHue']>;
+  stepColor: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveToHue']>;
+  moveToHue: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveToHue']>;
+  moveHue: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveHue']>;
+  stepHue: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['stepHue']>;
+  moveToSaturation: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveToSaturation']>;
+  moveSaturation: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveSaturation']>;
+  stepSaturation: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['stepSaturation']>;
+  moveToHueAndSaturation: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveToHueAndSaturation']>;
+  moveToColorTemperature: MakeMandatory<ClusterServerHandlers<typeof ColorControl.Complete>['moveToColorTemperature']>;
+
+  upOrOpen: MakeMandatory<ClusterServerHandlers<typeof WindowCovering.Complete>['upOrOpen']>;
+  downOrClose: MakeMandatory<ClusterServerHandlers<typeof WindowCovering.Complete>['downOrClose']>;
+  stopMotion: MakeMandatory<ClusterServerHandlers<typeof WindowCovering.Complete>['stopMotion']>;
+  goToLiftPercentage: MakeMandatory<ClusterServerHandlers<typeof WindowCovering.Complete>['goToLiftPercentage']>;
+
+  lockDoor: MakeMandatory<ClusterServerHandlers<typeof DoorLock.Complete>['lockDoor']>;
+  unlockDoor: MakeMandatory<ClusterServerHandlers<typeof DoorLock.Complete>['unlockDoor']>;
+
+  setpointRaiseLower: MakeMandatory<ClusterServerHandlers<typeof Thermostat.Complete>['setpointRaiseLower']>;
+
+  // step: MakeMandatory<ClusterServerHandlers<typeof FanControl.Complete>['step']>; // Rev > 2
+
+  suppressAlarm: MakeMandatory<ClusterServerHandlers<typeof BooleanStateConfiguration.Complete>['suppressAlarm']>;
+  enableDisableAlarm: MakeMandatory<ClusterServerHandlers<typeof BooleanStateConfiguration.Complete>['enableDisableAlarm']>;
+
+  selfTestRequest: MakeMandatory<ClusterServerHandlers<typeof SmokeCoAlarm.Complete>['selfTestRequest']>;
+
+  resetCounts: MakeMandatory<ClusterServerHandlers<typeof ThreadNetworkDiagnostics.Complete>['resetCounts']>;
+
+  setUtcTime: MakeMandatory<ClusterServerHandlers<typeof TimeSync.Complete>['setUtcTime']>;
+
+  pauseRequest: MakeMandatory<ClusterServerHandlers<typeof DeviceEnergyManagement.Complete>['pauseRequest']>;
+  resumeRequest: MakeMandatory<ClusterServerHandlers<typeof DeviceEnergyManagement.Complete>['resumeRequest']>;
+}
+
 export class MatterbridgeDeviceV8 extends Endpoint {
   public static bridgeMode = '';
   log: AnsiLogger;
@@ -117,6 +167,7 @@ export class MatterbridgeDeviceV8 extends Endpoint {
   private readonly clusterServers = new Map<ClusterId, ClusterServerObj<Attributes, Events>>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly clusterClients = new Map<ClusterId, ClusterClientObj<any, Attributes, Commands, Events>>();
+  private readonly commandHandler = new NamedHandler<MatterbridgeDeviceV8Commands>();
 
   /**
    * Represents a Matterbridge device.
@@ -265,6 +316,7 @@ export class MatterbridgeDeviceV8 extends Endpoint {
     const options: Record<string, any> = {};
     for (const attribute of Object.values(cluster.attributes)) {
       if ((attribute as AttributeServer<A>).id < 0xfff0) {
+        // No issue here for value, as cluster is just a definition without getter setter
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         options[(attribute as AttributeServer<A>).name] = (attribute as any).value;
       }
@@ -374,12 +426,11 @@ export class MatterbridgeDeviceV8 extends Endpoint {
       {
         identify: async (data) => {
           this.log.debug('Matter command: Identify');
-          // await this.commandHandler.executeHandler('identify', data);
+          await this.commandHandler.executeHandler('identify', data);
         },
       },
     );
   }
-
   /**
    * Creates a default IdentifyCluster server.
    */
@@ -747,7 +798,7 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         {
           resetCounts: async (data) => {
             this.log.debug('Matter command: resetCounts');
-            // await this.commandHandler.executeHandler('resetCounts', data);
+            await this.commandHandler.executeHandler('resetCounts', data);
           },
         },
         {},
@@ -769,15 +820,15 @@ export class MatterbridgeDeviceV8 extends Endpoint {
       {
         on: async (data) => {
           this.log.debug('Matter command: on onOff:', data.attributes.onOff.getLocal());
-          // await this.commandHandler.executeHandler('on', data);
+          await this.commandHandler.executeHandler('on', data);
         },
         off: async (data) => {
           this.log.debug('Matter command: off onOff:', data.attributes.onOff.getLocal());
-          // await this.commandHandler.executeHandler('off', data);
+          await this.commandHandler.executeHandler('off', data);
         },
         toggle: async (data) => {
           this.log.debug('Matter command: toggle onOff:', data.attributes.onOff.getLocal());
-          // await this.commandHandler.executeHandler('toggle', data);
+          await this.commandHandler.executeHandler('toggle', data);
         },
       },
       {},
@@ -810,9 +861,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         },
       },
       {
-        moveToLevel: async ({ request, attributes, endpoint }) => {
-          this.log.debug('Matter command: moveToLevel request:', request, 'attributes.currentLevel:', attributes.currentLevel.getLocal());
-          // await this.commandHandler.executeHandler('moveToLevel', { request, attributes, endpoint });
+        moveToLevel: async (data) => {
+          this.log.debug('Matter command: moveToLevel request:', data.request, 'attributes.currentLevel:', data.attributes.currentLevel.getLocal());
+          await this.commandHandler.executeHandler('moveToLevel', data);
         },
         move: async () => {
           this.log.error('Matter command: move not implemented');
@@ -823,9 +874,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         stop: async () => {
           this.log.error('Matter command: stop not implemented');
         },
-        moveToLevelWithOnOff: async ({ request, attributes, endpoint }) => {
-          this.log.debug('Matter command: moveToLevelWithOnOff request:', request, 'attributes.currentLevel:', attributes.currentLevel.getLocal());
-          // await this.commandHandler.executeHandler('moveToLevelWithOnOff', { request, attributes, endpoint });
+        moveToLevelWithOnOff: async (data) => {
+          this.log.debug('Matter command: moveToLevelWithOnOff request:', data.request, 'attributes.currentLevel:', data.attributes.currentLevel.getLocal());
+          await this.commandHandler.executeHandler('moveToLevelWithOnOff', data);
         },
         moveWithOnOff: async () => {
           this.log.error('Matter command: moveWithOnOff not implemented');
@@ -1058,22 +1109,22 @@ export class MatterbridgeDeviceV8 extends Endpoint {
       {
         upOrOpen: async (data) => {
           this.log.debug('Matter command: upOrOpen');
-          // await this.commandHandler.executeHandler('upOrOpen', data);
+          await this.commandHandler.executeHandler('upOrOpen', data);
         },
         downOrClose: async (data) => {
           this.log.debug('Matter command: downOrClose');
-          // await this.commandHandler.executeHandler('downOrClose', data);
+          await this.commandHandler.executeHandler('downOrClose', data);
         },
         stopMotion: async (data) => {
           this.log.debug('Matter command: stopMotion');
-          // await this.commandHandler.executeHandler('stopMotion', data);
+          await this.commandHandler.executeHandler('stopMotion', data);
         },
         goToLiftPercentage: async (data) => {
           this.log.debug(
             `Matter command: goToLiftPercentage: ${data.request.liftPercent100thsValue} current: ${data.attributes.currentPositionLiftPercent100ths?.getLocal()} ` +
               `target: ${data.attributes.targetPositionLiftPercent100ths?.getLocal()} status: ${data.attributes.operationalStatus.getLocal().lift}`,
           );
-          // await this.commandHandler.executeHandler('goToLiftPercentage', data);
+          await this.commandHandler.executeHandler('goToLiftPercentage', data);
         },
       },
       {},
@@ -1188,11 +1239,11 @@ export class MatterbridgeDeviceV8 extends Endpoint {
       {
         lockDoor: async (data) => {
           this.log.debug('Matter command: lockDoor', data.request);
-          // await this.commandHandler.executeHandler('lockDoor', data);
+          await this.commandHandler.executeHandler('lockDoor', data);
         },
         unlockDoor: async (data) => {
           this.log.debug('Matter command: unlockDoor', data.request);
-          // await this.commandHandler.executeHandler('unlockDoor', data);
+          await this.commandHandler.executeHandler('unlockDoor', data);
         },
       },
       {
@@ -1522,9 +1573,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         sensorFault: { generalFault: sensorFault },
       },
       {
-        enableDisableAlarm: async ({ request, attributes }) => {
-          this.log.debug('Matter command: enableDisableAlarm', request);
-          // await this.commandHandler.executeHandler('enableDisableAlarm', { request, attributes });
+        enableDisableAlarm: async (data) => {
+          this.log.debug('Matter command: enableDisableAlarm', data.request);
+          await this.commandHandler.executeHandler('enableDisableAlarm', data);
         },
       },
       {
@@ -1749,9 +1800,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         thermostatRunningMode: Thermostat.ThermostatRunningMode.Off,
       },
       {
-        setpointRaiseLower: async ({ request, attributes }) => {
-          this.log.debug('Matter command: setpointRaiseLower', request);
-          // await this.commandHandler.executeHandler('setpointRaiseLower', { request, attributes });
+        setpointRaiseLower: async (data) => {
+          this.log.debug('Matter command: setpointRaiseLower', data.request);
+          await this.commandHandler.executeHandler('setpointRaiseLower', data);
         },
       },
       {},
@@ -1786,9 +1837,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         timeZoneDatabase: true,
       },
       {
-        setUtcTime: async ({ request, attributes }) => {
-          this.log.debug('Matter command: setUtcTime', request);
-          // await this.commandHandler.executeHandler('setUtcTime', { request, attributes });
+        setUtcTime: async (data) => {
+          this.log.debug('Matter command: setUtcTime', data.request);
+          await this.commandHandler.executeHandler('setUtcTime', data);
         },
       },
       {
@@ -1828,9 +1879,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         interconnectCoAlarm: SmokeCoAlarm.AlarmState.Normal,
       },
       {
-        selfTestRequest: async ({ request, attributes }) => {
+        selfTestRequest: async (data) => {
           this.log.debug('Matter command: selfTestRequest');
-          // await this.commandHandler.executeHandler('selfTestRequest', { request, attributes });
+          await this.commandHandler.executeHandler('selfTestRequest', data);
         },
       },
       {
@@ -2218,13 +2269,13 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         forecast: null,
       },
       {
-        pauseRequest: async ({ request, attributes }) => {
-          this.log.debug('Matter command: pauseRequest', request);
-          // await this.commandHandler.executeHandler('pauseRequest', { request, attributes });
+        pauseRequest: async (data) => {
+          this.log.debug('Matter command: pauseRequest', data.request);
+          await this.commandHandler.executeHandler('pauseRequest', data);
         },
-        resumeRequest: async () => {
+        resumeRequest: async (data) => {
           this.log.debug('Matter command: resumeRequest');
-          // await this.commandHandler.executeHandler('resumeRequest');
+          await this.commandHandler.executeHandler('resumeRequest', data);
         },
       },
       {
