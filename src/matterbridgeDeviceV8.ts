@@ -255,6 +255,7 @@ export class MatterbridgeDeviceV8 extends Endpoint {
   addDeviceType(deviceType: DeviceTypeDefinition) {
     if (!this.deviceTypes.has(deviceType.code)) {
       this.log.debug(`addDeviceType: ${zb}${deviceType.code}${db}-${zb}${deviceType.name}${db}`);
+      /*
       this.lifecycle.ready.on(() => {
         this.act((agent) =>
           agent.get(DescriptorServer).addDeviceTypes({
@@ -263,7 +264,7 @@ export class MatterbridgeDeviceV8 extends Endpoint {
           }),
         );
       });
-
+      */
       /*
       this.act((agent) =>
         agent.get(DescriptorServer).addDeviceTypes({
