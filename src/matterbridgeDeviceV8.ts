@@ -8,12 +8,14 @@ import { MutableEndpoint, EndpointType } from '@project-chip/matter.js/endpoint/
 import { Behavior } from '@project-chip/matter.js/behavior';
 import { ClusterBehavior } from '@project-chip/matter.js/behavior/cluster';
 import { SupportedBehaviors, Behaviors } from '@project-chip/matter.js/endpoint/properties';
+import { DescriptorServer, DescriptorBehavior } from '@project-chip/matter.js/behavior/definitions/descriptor';
 import { IdentifyServer, IdentifyBehavior } from '@project-chip/matter.js/behavior/definitions/identify';
 import { GroupsServer, GroupsBehavior } from '@project-chip/matter.js/behavior/definitions/groups';
 import { ScenesServer, ScenesBehavior } from '@project-chip/matter.js/behavior/definitions/scenes';
 import { OnOffServer, OnOffBehavior } from '@project-chip/matter.js/behavior/definitions/on-off';
 import { TemperatureMeasurementServer } from '@project-chip/matter.js/behavior/definitions/temperature-measurement';
 import { RelativeHumidityMeasurementServer } from '@project-chip/matter.js/behavior/definitions/relative-humidity-measurement';
+import { PressureMeasurementServer } from '@project-chip/matter.js/behavior/definitions/pressure-measurement';
 import { BridgedDeviceBasicInformationServer, BridgedDeviceBasicInformationBehavior } from '@project-chip/matter.js/behavior/definitions/bridged-device-basic-information';
 
 // Old API imports
@@ -82,7 +84,7 @@ import { AtLeastOne, MakeMandatory, NamedHandler } from '@project-chip/matter-no
 import { ClusterId, EndpointNumber, VendorId } from '@project-chip/matter-node.js/datatype';
 
 // Matterbridge imports
-import { AnsiLogger, CYAN, TimestampFormat, db, hk, zb } from 'node-ansi-logger';
+import { AnsiLogger, CYAN, TimestampFormat, db, hk, rs, zb } from 'node-ansi-logger';
 import { BooleanStateConfiguration, BooleanStateConfigurationCluster } from './cluster/BooleanStateConfigurationCluster.js';
 import { PowerTopology, PowerTopologyCluster } from './cluster/PowerTopologyCluster.js';
 import { ElectricalPowerMeasurement, ElectricalPowerMeasurementCluster } from './cluster/ElectricalPowerMeasurementCluster.js';
@@ -207,13 +209,7 @@ export class MatterbridgeDeviceV8 extends Endpoint {
     // Map ClusterId to Behavior.Type
     const behaviorTypes: Behavior.Type[] = [];
     clusterServerList.forEach((clusterId) => {
-      if (clusterId === Identify.Cluster.id) behaviorTypes.push(IdentifyServer);
-      if (clusterId === Groups.Cluster.id) behaviorTypes.push(GroupsServer);
-      if (clusterId === Scenes.Cluster.id) behaviorTypes.push(ScenesServer);
-      if (clusterId === OnOff.Cluster.id) behaviorTypes.push(OnOffServer);
-      if (clusterId === TemperatureMeasurement.Cluster.id) behaviorTypes.push(TemperatureMeasurementServer);
-      if (clusterId === RelativeHumidityMeasurement.Cluster.id) behaviorTypes.push(RelativeHumidityMeasurementServer);
-      if (clusterId === BridgedDeviceBasicInformation.Cluster.id) behaviorTypes.push(BridgedDeviceBasicInformationServer);
+      behaviorTypes.push(MatterbridgeDeviceV8.getBehaviourTypeFromClusterServerId(clusterId));
     });
     return behaviorTypes;
   }
@@ -225,6 +221,19 @@ export class MatterbridgeDeviceV8 extends Endpoint {
       //
     });
     return behaviorTypes;
+  }
+
+  static getBehaviourTypeFromClusterServerId(clusterId: ClusterId) {
+    // Map ClusterId to Behavior.Type
+    if (clusterId === Identify.Cluster.id) return IdentifyServer;
+    if (clusterId === Groups.Cluster.id) return GroupsServer;
+    if (clusterId === Scenes.Cluster.id) return ScenesServer;
+    if (clusterId === OnOff.Cluster.id) return OnOffServer;
+    if (clusterId === TemperatureMeasurement.Cluster.id) return TemperatureMeasurementServer;
+    if (clusterId === RelativeHumidityMeasurement.Cluster.id) return RelativeHumidityMeasurementServer;
+    if (clusterId === PressureMeasurement.Cluster.id) return PressureMeasurementServer.with(PressureMeasurement.Feature.Extended);
+    if (clusterId === BridgedDeviceBasicInformation.Cluster.id) return BridgedDeviceBasicInformationServer;
+    return IdentifyServer;
   }
 
   /**
@@ -246,6 +255,14 @@ export class MatterbridgeDeviceV8 extends Endpoint {
   addDeviceType(deviceType: DeviceTypeDefinition) {
     if (!this.deviceTypes.has(deviceType.code)) {
       this.log.debug(`addDeviceType: ${zb}${deviceType.code}${db}-${zb}${deviceType.name}${db}`);
+      /*
+      this.act((agent) =>
+        agent.get(DescriptorServer).addDeviceTypes({
+          deviceType: deviceType.code,
+          revision: deviceType.revision,
+        }),
+      );
+      */
       this.deviceTypes.set(deviceType.code, deviceType);
     }
   }
@@ -321,9 +338,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
         options[(attribute as AttributeServer<A>).name] = (attribute as any).value;
       }
     }
-    this.log.debug(`addClusterServer: ${cluster.name} with options:`, options);
-    const behaviorTypes = MatterbridgeDeviceV8.getBehaviourTypesFromClusterServerIds([cluster.id]);
-    this.behaviors.require(behaviorTypes[0], options);
+    this.log.debug(`addClusterServer: ${cluster.name} with options:${rs}\n`, options);
+    const behavior = MatterbridgeDeviceV8.getBehaviourTypeFromClusterServerId(cluster.id);
+    this.behaviors.require(behavior, options);
     this.clusterServers.set(cluster.id, cluster);
   }
 

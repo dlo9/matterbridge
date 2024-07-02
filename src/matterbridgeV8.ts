@@ -44,6 +44,7 @@ import { AggregatorEndpoint } from '@project-chip/matter.js/endpoints/Aggregator
 import { BridgedNodeEndpoint } from '@project-chip/matter.js/endpoints/BridgedNodeEndpoint';
 
 // Behaviour servers
+import { DescriptorServer, DescriptorBehavior } from '@project-chip/matter.js/behavior/definitions/descriptor';
 import { IdentifyServer } from '@project-chip/matter.js/behavior/definitions/identify';
 import { OnOffServer } from '@project-chip/matter.js/behavior/definitions/on-off';
 import { GroupsServer } from '@project-chip/matter.js/behavior/definitions/groups';
@@ -70,7 +71,7 @@ import EventEmitter from 'events';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { MatterbridgeDeviceV8 } from './matterbridgeDeviceV8.js';
-import { Actions, BasicInformationCluster, Identify, RelativeHumidityMeasurement, SwitchCluster, TemperatureMeasurement } from '@project-chip/matter-node.js/cluster';
+import { Actions, BasicInformationCluster, Identify, PressureMeasurement, RelativeHumidityMeasurement, SwitchCluster, TemperatureMeasurement } from '@project-chip/matter-node.js/cluster';
 import { bridgedNode, dimmableSwitch } from './matterbridgeDevice.js';
 import { RegisteredPlugin } from './matterbridge.js';
 import { MatterbridgePlatform, PlatformConfig } from './matterbridgePlatform.js';
@@ -452,6 +453,18 @@ export class MatterbridgeV8 extends EventEmitter {
         reachable: true,
       },
     });
+    // await lightEndpoint1.construction;
+    /*
+    lightEndpoint1.act((agent) =>
+      agent.get(DescriptorServer).addDeviceTypes({
+        deviceType: DeviceTypeId(0x0302),
+        revision: 2,
+      }),
+    );
+    */
+
+    // logEndpoint(EndpointServer.forEndpoint(lightEndpoint1));
+
     await this.matterAggregator.add(lightEndpoint1);
 
     log.notice(`Adding switchEnpoint2 to ${await storageContext.get<string>('storeId')} aggregator`);
@@ -485,6 +498,7 @@ export class MatterbridgeV8 extends EventEmitter {
     log.notice(`Adding matterbridge device to ${await storageContext.get<string>('storeId')} aggregator`);
     const matterbridgeDevice3 = new MatterbridgeDeviceV8(DeviceTypes.TEMPERATURE_SENSOR, { uniqueStorageKey: 'TemperatureSensor' });
     matterbridgeDevice3.addDeviceTypeWithClusterServer([DeviceTypes.HUMIDITY_SENSOR], [TemperatureMeasurement.Cluster.id, RelativeHumidityMeasurement.Cluster.id]);
+    matterbridgeDevice3.addDeviceTypeWithClusterServer([DeviceTypes.PRESSURE_SENSOR], [PressureMeasurement.Cluster.id]);
     /*
     matterbridgeDevice3.behaviors.require(IdentifyServer, {
       identifyTime: 5,
@@ -511,7 +525,7 @@ export class MatterbridgeV8 extends EventEmitter {
 
     await this.startServerNode(storageContext);
 
-    // logEndpoint(EndpointServer.forEndpoint(matterbridgeDevice3));
+    logEndpoint(EndpointServer.forEndpoint(matterbridgeDevice3));
 
     await lightEndpoint1.set({
       onOff: {
