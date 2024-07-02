@@ -549,8 +549,8 @@ export class MatterbridgeV8 extends EventEmitter {
       productLabel: 'ClimateSensor',
       nodeLabel: 'ClimateSensor',
 
-      serialNumber: '0x145456739',
-      uniqueId: '0x124556739',
+      serialNumber: '0x145433356739',
+      uniqueId: '0x1254446739',
       reachable: true,
     });
 
