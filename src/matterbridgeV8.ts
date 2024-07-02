@@ -437,7 +437,7 @@ export class MatterbridgeV8 extends EventEmitter {
     }
     */
 
-    log.notice(`Creating lightEndpoint1 to ${await storageContext.get<string>('storeId')} aggregator`);
+    log.notice(`Creating lightEndpoint1 -> OnOffLightDevice.with(BridgedDeviceBasicInformationServer)`);
     const lightEndpoint1 = new Endpoint(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
       id: 'OnOffLight',
       bridgedDeviceBasicInformation: {
@@ -452,7 +452,16 @@ export class MatterbridgeV8 extends EventEmitter {
         uniqueId: '0x123456789',
         reachable: true,
       },
+      /*
+      descriptor: {
+        deviceTypeList: [
+          { deviceType: 0x100, revision: 3 },
+          { deviceType: 0x0302, revision: 2 },
+        ],
+      },
+      */
     });
+    /*
     await lightEndpoint1.act(async (agent) =>
       (await agent.load(DescriptorServer)).addDeviceTypes({
         deviceType: DeviceTypeId(0x0302),
@@ -460,7 +469,6 @@ export class MatterbridgeV8 extends EventEmitter {
       }),
     );
     log.notice(`Added device type to lightEndpoint1`);
-    /*
     lightEndpoint1.lifecycle.ready.on(() => {
       log.notice('Light is ready');
       lightEndpoint1.act((agent) =>
@@ -481,12 +489,11 @@ export class MatterbridgeV8 extends EventEmitter {
     );
     */
 
-    // logEndpoint(EndpointServer.forEndpoint(lightEndpoint1));
-
     log.notice(`Adding lightEndpoint1 to ${await storageContext.get<string>('storeId')} aggregator`);
     await this.matterAggregator.add(lightEndpoint1);
+    // logEndpoint(EndpointServer.forEndpoint(lightEndpoint1));
 
-    log.notice(`Adding switchEnpoint2 to ${await storageContext.get<string>('storeId')} aggregator`);
+    log.notice(`Creating switchEnpoint2`);
     const switchEnpoint2 = new Endpoint(GenericSwitchDevice.with(BridgedDeviceBasicInformationServer, SwitchServer.with('MomentarySwitch', 'MomentarySwitchLongPress', 'MomentarySwitchMultiPress', 'MomentarySwitchRelease')), {
       id: 'GenericSwitch',
       bridgedDeviceBasicInformation: {
@@ -508,15 +515,19 @@ export class MatterbridgeV8 extends EventEmitter {
       },
     });
 
+    log.notice(`Adding switchEnpoint2 to ${await storageContext.get<string>('storeId')} aggregator`);
     await this.matterAggregator.add(switchEnpoint2);
+    // logEndpoint(EndpointServer.forEndpoint(switchEnpoint2));
+
     switchEnpoint2.events.identify.startIdentifying.on(() => log.notice('GenericSwitch.identify logic, ideally blink a light every 0.5s ...'));
     switchEnpoint2.events.switch.currentPosition$Changed.on(() => log.notice('GenericSwitch.currentPosition changed ...'));
     // switchEnpoint2.act((agent) => agent.switch.events.initialPress.emit({ newPosition: 1 }, agent.context));
     // switchEnpoint2.events.switch.emit('initialPress', { newPosition: 1 }, switchEnpoint2.events.switch.context);
 
-    log.notice(`Adding matterbridge device to ${await storageContext.get<string>('storeId')} aggregator`);
-    const matterbridgeDevice3 = new MatterbridgeDeviceV8(DeviceTypes.TEMPERATURE_SENSOR, { uniqueStorageKey: 'TemperatureSensor' });
-    matterbridgeDevice3.addDeviceTypeWithClusterServer([DeviceTypes.HUMIDITY_SENSOR], [TemperatureMeasurement.Cluster.id, RelativeHumidityMeasurement.Cluster.id]);
+    log.notice(`Creating matterbridge device ClimateSensor`);
+    const matterbridgeDevice3 = new MatterbridgeDeviceV8(DeviceTypes.TEMPERATURE_SENSOR, { uniqueStorageKey: 'ClimateSensor' });
+    matterbridgeDevice3.addDeviceTypeWithClusterServer([DeviceTypes.TEMPERATURE_SENSOR], [TemperatureMeasurement.Cluster.id]);
+    matterbridgeDevice3.addDeviceTypeWithClusterServer([DeviceTypes.HUMIDITY_SENSOR], [RelativeHumidityMeasurement.Cluster.id]);
     matterbridgeDevice3.addDeviceTypeWithClusterServer([DeviceTypes.PRESSURE_SENSOR], [PressureMeasurement.Cluster.id]);
     /*
     matterbridgeDevice3.behaviors.require(IdentifyServer, {
@@ -528,19 +539,35 @@ export class MatterbridgeV8 extends EventEmitter {
       maxMeasuredValue: null,
     });
     */
+
+    log.notice(`Adding BridgedDeviceBasicInformationServer to ClimateSensor`);
     matterbridgeDevice3.behaviors.require(BridgedDeviceBasicInformationServer, {
       vendorId: VendorId(await storageContext.get<number>('vendorId')),
       vendorName: await storageContext.get<string>('vendorName'),
 
-      productName: 'TemperatureSensor',
-      productLabel: 'TemperatureSensor',
-      nodeLabel: 'TemperatureSensor',
+      productName: 'ClimateSensor',
+      productLabel: 'ClimateSensor',
+      nodeLabel: 'ClimateSensor',
 
       serialNumber: '0x145456739',
       uniqueId: '0x124556739',
       reachable: true,
     });
+
+    log.notice(`Adding DescriptorServer to ClimateSensor`);
+    /*
+    matterbridgeDevice3.behaviors.require(DescriptorServer, {
+      deviceTypeList: [
+        { deviceType: 0x0302, revision: 2 },
+        { deviceType: 0x0307, revision: 2 },
+        { deviceType: 0x0305, revision: 2 },
+      ],
+    });
+    */
+
+    log.notice(`Adding ClimateSensor to ${await storageContext.get<string>('storeId')} aggregator`);
     await this.matterAggregator.add(matterbridgeDevice3);
+    logEndpoint(EndpointServer.forEndpoint(matterbridgeDevice3));
 
     await this.startServerNode(storageContext);
 

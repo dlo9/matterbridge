@@ -84,7 +84,7 @@ import { AtLeastOne, MakeMandatory, NamedHandler } from '@project-chip/matter-no
 import { ClusterId, EndpointNumber, VendorId } from '@project-chip/matter-node.js/datatype';
 
 // Matterbridge imports
-import { AnsiLogger, CYAN, TimestampFormat, db, hk, rs, zb } from 'node-ansi-logger';
+import { AnsiLogger, CYAN, TimestampFormat, db, debugStringify, hk, rs, zb } from 'node-ansi-logger';
 import { BooleanStateConfiguration, BooleanStateConfigurationCluster } from './cluster/BooleanStateConfigurationCluster.js';
 import { PowerTopology, PowerTopologyCluster } from './cluster/PowerTopologyCluster.js';
 import { ElectricalPowerMeasurement, ElectricalPowerMeasurementCluster } from './cluster/ElectricalPowerMeasurementCluster.js';
@@ -254,26 +254,17 @@ export class MatterbridgeDeviceV8 extends Endpoint {
    */
   addDeviceType(deviceType: DeviceTypeDefinition) {
     if (!this.deviceTypes.has(deviceType.code)) {
+      // Keep the Matterbridge internal map
       this.log.debug(`addDeviceType: ${zb}${deviceType.code}${db}-${zb}${deviceType.name}${db}`);
-      /*
-      this.lifecycle.ready.on(() => {
-        this.act((agent) =>
-          agent.get(DescriptorServer).addDeviceTypes({
-            deviceType: deviceType.code,
-            revision: deviceType.revision,
-          }),
-        );
-      });
-      */
-      /*
-      this.act((agent) =>
-        agent.get(DescriptorServer).addDeviceTypes({
-          deviceType: deviceType.code,
-          revision: deviceType.revision,
-        }),
-      );
-      */
       this.deviceTypes.set(deviceType.code, deviceType);
+      // Add the device types to the descriptor server
+      const deviceTypeList = Array.from(this.deviceTypes.values()).map((dt) => ({
+        deviceType: dt.code,
+        revision: dt.revision,
+      }));
+      this.behaviors.require(DescriptorServer, {
+        deviceTypeList,
+      });
     }
   }
 
@@ -286,7 +277,6 @@ export class MatterbridgeDeviceV8 extends Endpoint {
   addDeviceTypeWithClusterServer(deviceTypes: AtLeastOne<DeviceTypeDefinition>, includeServerList: ClusterId[]) {
     this.log.debug('addDeviceTypeWithClusterServer:');
     deviceTypes.forEach((deviceType) => {
-      this.addDeviceType(deviceType);
       this.log.debug(`- with deviceType: ${zb}${deviceType.code}${db}-${zb}${deviceType.name}${db}`);
       deviceType.requiredServerClusters.forEach((clusterId) => {
         if (!includeServerList.includes(clusterId)) includeServerList.push(clusterId);
@@ -294,6 +284,9 @@ export class MatterbridgeDeviceV8 extends Endpoint {
     });
     includeServerList.forEach((clusterId) => {
       this.log.debug(`- with cluster: ${hk}${clusterId}${db}-${hk}${getClusterNameById(clusterId)}${db}`);
+    });
+    deviceTypes.forEach((deviceType) => {
+      this.addDeviceType(deviceType);
     });
     this.addClusterServerFromList(this, includeServerList);
   }
@@ -343,12 +336,12 @@ export class MatterbridgeDeviceV8 extends Endpoint {
     const options: Record<string, any> = {};
     for (const attribute of Object.values(cluster.attributes)) {
       if ((attribute as AttributeServer<A>).id < 0xfff0) {
-        // No issue here for value, as cluster is just a definition without getter setter
+        // No issue here for value, as cluster here is just a definition without getter setter
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         options[(attribute as AttributeServer<A>).name] = (attribute as any).value;
       }
     }
-    this.log.debug(`addClusterServer: ${cluster.name} with options:${rs}\n`, options);
+    this.log.debug(`addClusterServer: ${hk}${cluster.id}${db}-${hk}${getClusterNameById(cluster.id)}${db} with options: ${debugStringify(options)}${rs}`);
     const behavior = MatterbridgeDeviceV8.getBehaviourTypeFromClusterServerId(cluster.id);
     this.behaviors.require(behavior, options);
     this.clusterServers.set(cluster.id, cluster);
