@@ -89,7 +89,7 @@
     "deepCleanRebuild": "npm run deepClean && npm install && npm run build && npm ls rimraf inflight glob",
     "prepublishOnly": "npm run wtf:uninstall && npm uninstall matter-history && npm install matter-history && npm run lint && npm run cleanBuild",
     "checkDependencies": "npx npm-check-updates",
-    "updateDependencies": "npx npm-check-updates -u && npm install & npm run cleanBuild",
+    "updateDepend encies": "npx npm-check-updates -u && npm install & npm run cleanBuild",
     "updateMatter:latest": "npm run deepClean && npm install @project-chip/matter-node.js@latest && npm install && npm run build",
     "updateMatter:dev": "npm run deepClean && npm install @project-chip/matter-node.js@dev && npm install && npm run build",
     "wtf:install": "npm install wtfnode && npm install --save-dev @types/wtfnode",

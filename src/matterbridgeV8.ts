@@ -437,7 +437,7 @@ export class MatterbridgeV8 extends EventEmitter {
     }
     */
 
-    log.notice(`Adding lightEndpoint1 to ${await storageContext.get<string>('storeId')} aggregator`);
+    log.notice(`Creating lightEndpoint1 to ${await storageContext.get<string>('storeId')} aggregator`);
     const lightEndpoint1 = new Endpoint(OnOffLightDevice.with(BridgedDeviceBasicInformationServer), {
       id: 'OnOffLight',
       bridgedDeviceBasicInformation: {
@@ -453,6 +453,24 @@ export class MatterbridgeV8 extends EventEmitter {
         reachable: true,
       },
     });
+    await lightEndpoint1.act(async (agent) =>
+      (await agent.load(DescriptorServer)).addDeviceTypes({
+        deviceType: DeviceTypeId(0x0302),
+        revision: 2,
+      }),
+    );
+    log.notice(`Added device type to lightEndpoint1`);
+    /*
+    lightEndpoint1.lifecycle.ready.on(() => {
+      log.notice('Light is ready');
+      lightEndpoint1.act((agent) =>
+        agent.get(DescriptorServer).addDeviceTypes({
+          deviceType: DeviceTypeId(0x0302),
+          revision: 2,
+        }),
+      );
+    });
+    */
     // await lightEndpoint1.construction;
     /*
     lightEndpoint1.act((agent) =>
@@ -465,6 +483,7 @@ export class MatterbridgeV8 extends EventEmitter {
 
     // logEndpoint(EndpointServer.forEndpoint(lightEndpoint1));
 
+    log.notice(`Adding lightEndpoint1 to ${await storageContext.get<string>('storeId')} aggregator`);
     await this.matterAggregator.add(lightEndpoint1);
 
     log.notice(`Adding switchEnpoint2 to ${await storageContext.get<string>('storeId')} aggregator`);
@@ -525,8 +544,6 @@ export class MatterbridgeV8 extends EventEmitter {
 
     await this.startServerNode(storageContext);
 
-    logEndpoint(EndpointServer.forEndpoint(matterbridgeDevice3));
-
     await lightEndpoint1.set({
       onOff: {
         onOff: true,
@@ -547,7 +564,7 @@ export class MatterbridgeV8 extends EventEmitter {
     });
     switchEnpoint2.act((agent) => agent.switch.events.initialPress.emit({ newPosition: 1 }, agent.context));
 
-    // logEndpoint(EndpointServer.forEndpoint(matterbridgeDevice3));
+    // logEndpoint(EndpointServer.forEndpoint(this.matterServerNode));
 
     /*
     logEndpoint(EndpointServer.forEndpoint(this.matterServerNode));
