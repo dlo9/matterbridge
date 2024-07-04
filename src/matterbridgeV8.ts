@@ -411,7 +411,7 @@ export class MatterbridgeV8 extends EventEmitter {
     if (!this.matterLogger) throw new Error('No logger initialized');
     const log = this.matterLogger;
 
-    const storageContext = await this.createServerNodeContext('Matterbridge', 'Matterbridge', AggregatorEndpoint.deviceType, 0xfff1, 'Matterbridge', 0x8000, 'Matterbridge Aggregator');
+    const storageContext = await this.createServerNodeContext('Matterbridge', 'Matterbridge', AggregatorEndpoint.deviceType, 65521 /* 0xfff1*/, 'Matterbridge', 0x8000, 'Matterbridge Aggregator');
 
     this.matterServerNode = await this.createServerNode(storageContext);
 
@@ -827,7 +827,7 @@ export class MatterbridgeV8 extends EventEmitter {
   }
 }
 
-// node dist/matterbridgeV8.js MatterbridgeV8
+// node dist/matterbridgeV8.js MatterbridgeV8 -bridge
 if (process.argv.includes('MatterbridgeV8')) {
   const matterbridge = await MatterbridgeV8.create();
 
